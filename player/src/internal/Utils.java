@@ -1,6 +1,8 @@
 package com.spark.player.internal;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.res.Resources;
 import android.util.TypedValue;
 
@@ -13,5 +15,14 @@ public static int dp2px(Context context, int dp){
 
 public static String fix_url(String url){
     return url!=null && url.startsWith("//") ? "https:"+url : url;
+}
+public static Activity get_activity(Context context){
+    if (context==null)
+        return null;
+    if (context instanceof Activity)
+        return (Activity)context;
+    if (context instanceof ContextWrapper)
+        return get_activity(((ContextWrapper)context).getBaseContext());
+    return null;
 }
 }

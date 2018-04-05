@@ -96,7 +96,6 @@ final private thread_t m_timeupdate = new thread_t();
 final private Queue<String> m_msg_queue = new LinkedList<>();
 private String m_state = "NONE";
 private String m_media_url = "";
-private SparkPlayerCallback m_playlist_cb;
 private View m_video_view;
 private boolean m_js_attach_ready = false;
 // XXX pavelki/andrey: TODO
@@ -281,6 +280,20 @@ List<QualityItem> get_quality_items(){
     }
     return res;
 }
+QualityItem get_selected_quality(){
+    List<QualityItem> items = get_quality_items();
+    for (QualityItem item : items)
+    {
+        MappingTrackSelector.SelectionOverride override = m_trackselector
+            .getSelectionOverride(item.m_renderer_index, item.m_groups);
+        if (override!=null && override.groupIndex==item.m_group_index &&
+            override.containsTrack(item.m_track_index))
+        {
+            return item;
+        }
+    }
+    return null;
+}
 void set_quality(QualityItem item){
     Log.d(Const.TAG, "set quality "+(item == null ? "auto" : item));
     if (item == null)
@@ -332,23 +345,6 @@ public boolean is_playing(){
 }
 public boolean is_paused(){ return !m_exoplayer.getPlayWhenReady(); }
 public boolean is_playing_ad(){ return m_exoplayer.isPlayingAd(); }
-public void load_playlists(final SparkPlayerCallback cb){
-    if (!WebViewController.m_js_inited || m_playlist_cb!=null)
-    {
-        m_handler.postDelayed(new Runnable() {
-            @Override
-            public void run(){ load_playlists(cb); }
-        }, 300);
-        return;
-    }
-    m_playlist_cb = cb;
-    String script = "javascript:window.hola_cdn && hola_cdn.api.get_spark()"
-        +".fetch_from_map_cdns.call(hola_cdn.api.get_spark(), 'get_playlists',"
-        +"{customer: '"+m_customer+"', last: '1w', vinfo: 1, hits: 6, ext: 1}, "
-        +"{cb: function(res){ window.hola_java_proxy.playlist_cb("
-        +"JSON.stringify(res.res), "+this.hashCode()+"); }})";
-    WebViewController.evaluate(script, null);
-}
 public void send_spark_message(String type, final String subtype,
     final String param1, final int param2, final SparkPlayerCallback cb)
 {
@@ -720,7 +716,16 @@ private void check_hola(){
         }
     });
 }
-int get_duration(){ return (int) m_exoplayer.getDuration(); }
+long get_video_duration(){
+    // original getDuration() method returns ad duration when ad playing
+    Timeline timeline = m_exoplayer.getCurrentTimeline();
+    if (timeline.isEmpty())
+        return C.TIME_UNSET;
+    Timeline.Window window = new Timeline.Window();
+    return timeline.getWindow(m_exoplayer.getCurrentWindowIndex(),
+        window).getDurationMs();
+}
+long get_buffred_pos(){ return m_exoplayer.getBufferedPosition(); }
 int get_pos(){ return (int) m_exoplayer.getCurrentPosition(); }
 void seek(int ms){ this.seek((long)ms); }
 boolean is_live_stream(){ return m_exoplayer.isCurrentWindowDynamic(); }
@@ -732,17 +737,8 @@ String get_app_label(){
     PackageManager pm = m_context.getPackageManager();
     return (String) pm.getApplicationLabel(m_context.getApplicationInfo());
 }
-void playlist_cb(final String res){
-    if (m_playlist_cb == null)
-        return;
-    m_handler.post(new Runnable() {
-        @Override
-        public void run(){
-            m_playlist_cb.done(res);
-            m_playlist_cb = null;
-        }
-    });
-}
+String get_poster(){ return m_player.get_poster(); }
+String get_title(){ return m_player.get_title(); }
 String module_cb(String module, String fn, String value){
     return m_player.module_cb(module, fn, value);
 }

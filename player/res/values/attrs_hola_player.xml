@@ -10,5 +10,7 @@
         <attr name="customer" format="string"/>
         <attr name="bottom_settings_menu" format="boolean"/>
         <attr name="auto_fullscreen" format="boolean"/>
+        <attr name="max_height" format="dimension"/>
+        <attr name="max_width" format="dimension"/>
     </declare-styleable>
 </resources>

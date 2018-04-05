@@ -29,6 +29,12 @@ private String scale_number(double n){
     DecimalFormat df = new DecimalFormat(n<1 ? "0.###" : n<10 ? "0.##" : n<100 ? "0.#" : "0" );
     return df.format(n)+sizes[i];
 }
+public boolean equals(QualityItem item){
+    return item!=null && m_groups==item.m_groups &&
+        m_renderer_index==item.m_renderer_index &&
+        m_group_index==item.m_group_index &&
+        m_track_index==item.m_track_index;
+}
 public String toString(){
     return m_format.height!=Format.NO_VALUE ? m_format.height+"p" :
         scale_number(m_format.bitrate)+"bps";

@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
-    <com.spark.player.internal.VideoFrameLayout
+    <com.google.android.exoplayer2.ui.AspectRatioFrameLayout
         android:id="@id/spark_player_content"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" android:layout_gravity="center">
-    </com.spark.player.internal.VideoFrameLayout>
+        android:layout_height="match_parent"
+        android:layout_gravity="center">
+    </com.google.android.exoplayer2.ui.AspectRatioFrameLayout>
     <FrameLayout android:id="@id/spark_ad_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>

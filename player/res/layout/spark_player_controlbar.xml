@@ -9,7 +9,16 @@
     <View android:layout_width="match_parent" android:layout_height="100dp"
         android:background="@drawable/controlbar_gradient" android:layout_gravity="bottom"/>
     <LinearLayout style="@style/SparkTopBar">
-        <ImageButton android:id="@+id/spark_player_menu_button" style="@style/SparkMenuButton"/>
+        <FrameLayout android:layout_weight="1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent">
+            <TextView android:id="@+id/spark_player_title"
+                style="@style/SparkVideoTitle"
+                android:visibility="gone"/>
+        </FrameLayout>
+        <ImageButton android:id="@+id/spark_player_menu_button"
+            android:layout_gravity="end"
+            style="@style/SparkMenuButton"/>
     </LinearLayout>
     <LinearLayout android:id="@+id/middle_buttons_holder" android:layout_width="wrap_content"
         android:layout_height="wrap_content" android:layout_gravity="center"

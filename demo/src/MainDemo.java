@@ -1,5 +1,6 @@
 package com.spark.demo;
 import android.app.Activity;
+import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import com.google.android.exoplayer2.ExoPlaybackException;
@@ -13,13 +14,16 @@ private SparkPlayer m_spark_player = null;
 private SampleListener m_listener;
 private String m_video_url;
 private String m_poster_url;
+private String m_title;
 private boolean m_playing = true;
 @Override
 protected void onCreate(Bundle saved_state){
     super.onCreate(saved_state);
     setContentView(R.layout.main_demo);
-    m_video_url = getIntent().getStringExtra("video_url");
-    m_poster_url= getIntent().getStringExtra("poster_url");
+    Intent intent = getIntent();
+    m_video_url = intent.getStringExtra("video_url");
+    m_poster_url= intent.getStringExtra("poster_url");
+    m_title = intent.getStringExtra("title");
     m_spark_player = findViewById(R.id.float_player);
     m_listener = new SampleListener();
     m_spark_player.addListener(m_listener);
@@ -70,7 +74,7 @@ public void init(){
     final boolean vr = m_video_url.equals(getString(R.string.video_url_hls_vr));
     m_spark_player.vr_mode(vr);
     m_spark_player.queue(new PlayItem(vr ? null : getString(R.string.ad_tag),
-        m_video_url, m_poster_url));
+        m_video_url, m_poster_url, m_title));
 }
 class SampleListener extends Player.DefaultEventListener {
     @Override

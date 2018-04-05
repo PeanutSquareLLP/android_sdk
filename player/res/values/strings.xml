@@ -6,5 +6,6 @@
     <string name="normal">Normal</string>
     <string name="auto">Auto</string>
     <string name="live">LIVE</string>
-    <string name="powered_by">Spark Player</string>
+    <string name="powered_by">Spark Player %1$s</string>
+    <string name="bullet">\u2022</string>
 </resources>

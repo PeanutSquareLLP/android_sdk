@@ -28,11 +28,11 @@ public View onCreateView(LayoutInflater inflater, ViewGroup container,
     return view;
 }
 
-public void play_video(String video_url, String poster_url){
+public void play_video(String video_url, String poster_url, String title){
     final boolean vr = video_url.equals(getString(R.string.video_url_hls_vr));
     m_spark_player.vr_mode(vr);
     m_spark_player.queue(new PlayItem(vr ? null : getString(R.string.ad_tag),
-        video_url, poster_url));
+        video_url, poster_url, title));
     m_spark_player.setPlayWhenReady(true);
     getView().setVisibility(View.VISIBLE);
     m_behavior.setState(FloatingPlayerBehavior.STATE_EXPANDED);

@@ -1,6 +1,7 @@
 package com.spark.player.internal;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
+import com.google.android.exoplayer2.C;
 import com.spark.player.Const;
 import java.lang.ref.WeakReference;
 import java.util.Iterator;
@@ -50,11 +51,14 @@ private synchronized ExoPlayerController findPlayer(int hashCode){
     return null;
 }
 @JavascriptInterface
-public int get_duration(int hashCode){
+public long get_duration(int hashCode){
     try {
         ExoPlayerController p = findPlayer(hashCode);
         if (p!=null)
-            return p.get_duration();
+        {
+            long dur = p.get_video_duration();
+            return dur==C.TIME_UNSET ? 0 : dur;
+        }
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
@@ -123,6 +127,21 @@ public String get_state(){ return "PLAYING"; }
 @JavascriptInterface
 public String get_buffered(){ return ""; }
 @JavascriptInterface
+public long get_buffered_pos(int hashCode){
+    try {
+        ExoPlayerController p = findPlayer(hashCode);
+        if (p!=null)
+        {
+            long pos = p.get_buffred_pos();
+            return pos==C.TIME_UNSET ? 0 : pos;
+        }
+    } catch(Exception e){
+        Log.d(Const.TAG, "exception hash: "+hashCode);
+        Log.e(Const.TAG, "exception", e);
+    }
+    return 0;
+}
+@JavascriptInterface
 public void js_attach_ready(int hashCode){
     ExoPlayerController p = findPlayer(hashCode);
     if (p!=null)
@@ -155,15 +174,28 @@ public boolean is_ad_playing(int hashCode){
     return false;
 }
 @JavascriptInterface
-public void playlist_cb(final String res, int hashCode){
+public String get_poster(int hashCode){
     try {
         ExoPlayerController p = findPlayer(hashCode);
         if (p!=null)
-            p.playlist_cb(res);
+            return p.get_poster();
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
     }
+    return null;
+}
+@JavascriptInterface
+public String get_title(int hashCode){
+    try {
+        ExoPlayerController p = findPlayer(hashCode);
+        if (p!=null)
+            return p.get_title();
+    } catch(Exception e){
+        Log.d(Const.TAG, "exception hash: "+hashCode);
+        Log.e(Const.TAG, "exception", e);
+    }
+    return null;
 }
 @JavascriptInterface
 public void module_cb(final String module, String fn, String value,

@@ -55,6 +55,7 @@ private boolean m_pinned_mode;
 public void onCreate(Bundle saved_state){
     // XXX pavelki: restore saved state onCreate
     m_customer_id = getIntent().getStringExtra("customer_id");
+    //
     SparkPlayer.set_customer(this, m_customer_id);
     super.onCreate(saved_state);
     setContentView(R.layout.main_activity);
@@ -186,13 +187,15 @@ protected void onListItemClick(ListView listview, View view, int pos, long id){
     {
         if (m_video_fragment==null)
             create_video_fragment();
-        m_video_fragment.play_video(article.m_video_url, article.m_image_url);
+        m_video_fragment.play_video(article.m_video_url, article.m_image_url,
+            article.m_title);
         return;
     }
     Intent intent = new Intent(this, MainDemo.class);
     intent.putExtra("customer_id", m_customer_id);
     intent.putExtra("video_url", article.m_video_url);
     intent.putExtra("poster_url", article.m_image_url);
+    intent.putExtra("title", article.m_title);
     startActivity(intent);
 }
 @Override

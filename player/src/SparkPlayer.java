@@ -33,12 +33,12 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
 import com.spark.player.internal.PlayerControlView;
 import com.spark.player.internal.ExoPlayerController;
 import com.spark.player.internal.FullScreenPlayer;
 import com.spark.player.internal.PlayerState;
 import com.spark.player.internal.Utils;
-import com.spark.player.internal.VideoFrameLayout;
 import com.spark.player.internal.WebViewController;
 import net.protyposis.android.spectaculum.InputSurfaceHolder;
 import net.protyposis.android.spectaculum.LibraryHelper;
@@ -60,7 +60,7 @@ private ExoPlayerController m_controller;
 private ExoPlayer m_exoplayer;
 private PlayerState m_state;
 private FrameLayout m_overlay;
-private VideoFrameLayout m_content;
+private AspectRatioFrameLayout m_content;
 private PlayerControlView m_controlbar;
 private FullScreenPlayer m_fullscreen;
 private GestureDetector m_gesturedetector;
@@ -75,8 +75,11 @@ private float m_panx;
 private float m_pany;
 private boolean m_controlbar_enabled;
 private String m_poster_url;
+private String m_title;
 private int m_prev_orientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED;
 private int m_prev_conf_orientation;
+private int m_max_height;
+private int m_max_width;
 // XXX andrey/pavelki: create a map <String, SparkModule>
 private SparkModule m_spark_watch_next;
 private SparkModule m_spark_persistent;
@@ -123,6 +126,10 @@ public SparkPlayer(Context context, AttributeSet attrs){
         m_config.m_auto_fullscreen = style.getBoolean(
             R.styleable.SparkPlayer_auto_fullscreen,
             m_config.m_auto_fullscreen);
+        m_max_height = style.getDimensionPixelSize(
+            R.styleable.SparkPlayer_max_height, Integer.MAX_VALUE);
+        m_max_width = style.getDimensionPixelSize(
+            R.styleable.SparkPlayer_max_width, Integer.MAX_VALUE);
         style.recycle();
     }
     setup_player();
@@ -136,7 +143,7 @@ private void setup_player(){
         .WINDOW_SERVICE)).getDefaultDisplay();
     Point size = new Point();
     display.getSize(size);
-    m_content.set_aspect(Math.max(size.x, size.y)/
+    m_content.setAspectRatio(Math.max(size.x, size.y)/
         (float)Math.min(size.x, size.y));
     m_content.requestLayout();
     m_overlay = findViewById(R.id.spark_ad_overlay);
@@ -242,10 +249,10 @@ protected void onMeasure(int width_spec, int height_spec){
     video_width = video_width==0 ? 960 : video_width;
     video_height = video_height==0 ? 540 : video_height;
     float aspect = (float)video_width/video_height;
-    int max_width = width_mode==MeasureSpec.AT_MOST ? width_size :
-        Integer.MAX_VALUE;
-    int max_height = height_mode==MeasureSpec.AT_MOST ? height_size :
-        Integer.MAX_VALUE;
+    int max_width = Math.min(width_mode==MeasureSpec.AT_MOST ? width_size :
+        Integer.MAX_VALUE, m_max_width);
+    int max_height = Math.min(height_mode==MeasureSpec.AT_MOST ? height_size :
+        Integer.MAX_VALUE, m_max_height);
     int width, height;
     if (width_mode==MeasureSpec.EXACTLY && height_mode==MeasureSpec.EXACTLY)
     {
@@ -352,11 +359,13 @@ public void queue(PlayItem item){
     Log.d(Const.TAG, "queue "+item.get_media()+" "+item.get_ad_tag());
     if (!m_state.m_inited)
         return;
+    m_title = item.get_title();
     m_controller.queue(item);
     String poster = item.get_poster();
     set_poster(poster);
     m_controlbar.hide();
 }
+public String get_title() { return m_title; }
 @Override
 public void set_poster(String poster_url){
     if (poster_url!=null && !poster_url.isEmpty())
@@ -364,8 +373,9 @@ public void set_poster(String poster_url){
     m_poster_url = poster_url;
     update_poster_state();
 }
+public String get_poster(){ return m_poster_url; }
 private void update_poster_state(){
-    int state = m_controller.get_exoplayer().getPlaybackState();
+    int state = getPlaybackState();
     m_poster.setVisibility(m_poster_url!=null && !m_poster_url.isEmpty() &&
         (state==Player.STATE_IDLE || state==Player.STATE_ENDED ||
         !m_controller.has_video_track()) ? VISIBLE : GONE);
@@ -373,6 +383,11 @@ private void update_poster_state(){
 private void update_loading_state(){
     m_loading.setVisibility(getPlaybackState()==Player.STATE_BUFFERING &&
         !isPlayingAd() ? VISIBLE : GONE);
+}
+private void update_keep_screen_state(){
+    int state = getPlaybackState();
+    setKeepScreenOn(getPlayWhenReady() && state!=Player.STATE_ENDED &&
+        state!=Player.STATE_IDLE);
 }
 @Override
 public void uninit(){
@@ -412,14 +427,14 @@ public void fullscreen(Boolean state){
 private void show_fullscreen(){
     check_create_video_view();
     ViewGroup.LayoutParams lp = m_loading.getLayoutParams();
+    Activity activity = Utils.get_activity(m_context);
     if (m_state.m_fullscreen)
     {
         m_fullscreen.activate(this);
-        if (m_context instanceof Activity)
+        if (activity!=null)
         {
-            Activity a = (Activity)m_context;
-            m_prev_orientation = a.getRequestedOrientation();
-            a.setRequestedOrientation(get_aspect()>1 ?
+            m_prev_orientation = activity.getRequestedOrientation();
+            activity.setRequestedOrientation(get_aspect()>1 ?
                 ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE :
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
@@ -427,8 +442,8 @@ private void show_fullscreen(){
     }
     else
     {
-        if (m_context instanceof Activity)
-            ((Activity) m_context).setRequestedOrientation(m_prev_orientation);
+        if (activity!=null)
+            activity.setRequestedOrientation(m_prev_orientation);
         m_fullscreen.restore_player();
         lp.width = lp.height = Utils.dp2px(m_context, 64);
     }
@@ -773,6 +788,7 @@ private class EventListener extends Player.DefaultEventListener implements
         m_playback_state = playback_state;
         update_poster_state();
         update_loading_state();
+        update_keep_screen_state();
     }
     @Override
     public void onSeekProcessed(){
@@ -814,13 +830,13 @@ private class EventListener extends Player.DefaultEventListener implements
     public void on_video_size(int width, int height){
         float aspect = ((float)width)/height;
         Log.d(Const.TAG, "video aspect "+aspect);
-        m_content.set_aspect(aspect);
+        m_content.setAspectRatio(aspect);
         if (m_video_view instanceof SpectaculumView)
             ((SpectaculumView) m_video_view).updateResolution(width, height);
-        if (is_fullscreen())
+        Activity activity = Utils.get_activity(m_context);
+        if (activity!=null && is_fullscreen())
         {
-            Activity a = (Activity)m_context;
-            a.setRequestedOrientation(aspect>1 ?
+            activity.setRequestedOrientation(aspect>1 ?
                 ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE :
                 ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         }
