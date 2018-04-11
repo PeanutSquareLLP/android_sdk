@@ -30,17 +30,17 @@
     <LinearLayout android:id="@+id/bottom_bar_holder" android:layout_width="match_parent"
         android:layout_height="wrap_content" android:layout_gravity="bottom"
         android:orientation="vertical">
-        <FrameLayout android:id="@+id/thumb_holder" android:layout_width="wrap_content"
-            android:layout_height="wrap_content" android:visibility="gone" android:padding="1dp"
-            android:background="@drawable/thumbnail_frame" android:layout_marginBottom="16dp">
-            <ImageView android:id="@+id/thumb_image" android:layout_width="200dp"
-                android:layout_height="100dp"/>
-        </FrameLayout>
-        <LinearLayout style="@style/SparkBottomBar">
-            <TextView android:id="@id/exo_position"  style="@style/SparkPlayerTime.Current"/>
-            <com.google.android.exoplayer2.ui.DefaultTimeBar android:id="@id/exo_progress"
-                style="@style/SparkTimeBar"/>
-            <TextView android:id="@id/exo_duration" style="@style/SparkPlayerTime.Duration"/>
+        <LinearLayout android:id="@+id/spark_bottom_bar"
+            style="@style/SparkBottomBar">
+            <TextView android:id="@+id/spark_position"  style="@style/SparkPlayerTime.Current"/>
+            <FrameLayout android:id="@+id/spark_timebar_holder"
+                style="@style/SparkTimeBarHolder">
+                <com.spark.player.internal.SparkTimeBar
+                    android:id="@+id/spark_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+            </FrameLayout>
+            <TextView android:id="@+id/spark_duration" style="@style/SparkPlayerTime.Duration"/>
             <LinearLayout android:id="@+id/live_control" android:layout_width="0dp"
                 android:layout_height="wrap_content" android:layout_weight="1"
                 android:orientation="horizontal" android:visibility="gone"

@@ -37,12 +37,10 @@ private SparkPlayer m_player;
 private ExoPlayerController m_controller;
 private ListView m_list_view;
 
-SettingsDialog(@NonNull Context context, SparkPlayer player,
-    ExoPlayerController controller)
-{
+SettingsDialog(@NonNull Context context, SparkPlayer player){
     super(context);
     m_player = player;
-    m_controller = controller;
+    m_controller = player.get_controller();
     setContentView(R.layout.spark_settings_dialog);
     m_list_view = findViewById(R.id.spark_settings_list);
     TextView about = findViewById(R.id.powered_by);

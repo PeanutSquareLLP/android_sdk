@@ -51,6 +51,7 @@ void set_poster(String poster_url);
     void on_ad_start();
     void on_ad_end();
     void on_fullscreen_changed(boolean is_fullscreen);
+    void on_new_video(String url);
 }
 @Deprecated abstract class DefaultEventListener implements EventListener {
     @Override

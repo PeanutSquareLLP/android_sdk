@@ -34,7 +34,7 @@ import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
-import com.spark.player.internal.PlayerControlView;
+import com.spark.player.internal.PlaybackControlView;
 import com.spark.player.internal.ExoPlayerController;
 import com.spark.player.internal.FullScreenPlayer;
 import com.spark.player.internal.PlayerState;
@@ -61,12 +61,13 @@ private ExoPlayer m_exoplayer;
 private PlayerState m_state;
 private FrameLayout m_overlay;
 private AspectRatioFrameLayout m_content;
-private PlayerControlView m_controlbar;
+private PlaybackControlView m_control_view;
 private FullScreenPlayer m_fullscreen;
 private GestureDetector m_gesturedetector;
 private float m_downdistance;
 private SparkPlayerConfig m_config;
-private Set<SparkPlayerAPI.EventListener> m_listeners;
+private Set<SparkPlayerAPI.EventListener> m_listeners_dep;
+private Set<EventListener> m_listeners;
 private ImmersiveEffect m_immersive;
 private NetworkImageView m_poster;
 private ImageLoader m_image_loader;
@@ -85,6 +86,7 @@ private SparkModule m_spark_watch_next;
 private SparkModule m_spark_persistent;
 private SparkModule m_spark_thumbnails;
 private SparkModule m_spark_position;
+private SparkEventListener m_listener;
 public SparkPlayer(Context context){
     this(context, null);
 }
@@ -94,6 +96,7 @@ public SparkPlayer(Context context, AttributeSet attrs){
     m_context = context;
     m_state = new PlayerState();
     m_config = new SparkPlayerConfig();
+    m_listeners_dep = new CopyOnWriteArraySet<>();
     m_listeners = new CopyOnWriteArraySet<>();
     setBackgroundColor(getResources().getColor(R.color.black));
     m_prev_conf_orientation = getResources().getConfiguration().orientation;
@@ -104,32 +107,35 @@ public SparkPlayer(Context context, AttributeSet attrs){
         String customer = style.getString(R.styleable.SparkPlayer_customer);
         if (customer!=null)
             set_customer(context, customer);
-        m_config.m_floatmode = style.getBoolean(
-            R.styleable.SparkPlayer_float_mode, m_config.m_floatmode);
-        m_config.m_float_close_on_touch = style.getBoolean(
+        m_config.floatmode = style.getBoolean(
+            R.styleable.SparkPlayer_float_mode, m_config.floatmode);
+        m_config.float_close_on_touch = style.getBoolean(
             R.styleable.SparkPlayer_float_close_on_touch,
-            m_config.m_float_close_on_touch);
-        m_config.m_thumbnails = style.getBoolean(
-            R.styleable.SparkPlayer_thumbnails, m_config.m_thumbnails);
-        m_config.m_vrmode = style.getBoolean(R.styleable.SparkPlayer_vr_mode,
-            m_config.m_vrmode);
-        m_config.m_position_memory = style.getBoolean(
-            R.styleable.SparkPlayer_position_memory, m_config.m_position_memory);
-        m_config.m_full_frame_thumbnails = style.getBoolean(
+            m_config.float_close_on_touch);
+        m_config.thumbnails = style.getBoolean(
+            R.styleable.SparkPlayer_thumbnails, m_config.thumbnails);
+        m_config.vrmode = style.getBoolean(R.styleable.SparkPlayer_vr_mode,
+            m_config.vrmode);
+        m_config.position_memory = style.getBoolean(
+            R.styleable.SparkPlayer_position_memory, m_config.position_memory);
+        m_config.full_frame_thumbnails = style.getBoolean(
             R.styleable.SparkPlayer_full_frame_thumbnails,
-            m_config.m_full_frame_thumbnails);
-        m_config.m_watch_next = style.getBoolean(
-            R.styleable.SparkPlayer_watch_next, m_config.m_watch_next);
-        m_config.m_bottom_settings_menu = style.getBoolean(
+            m_config.full_frame_thumbnails);
+        m_config.watch_next = style.getBoolean(
+            R.styleable.SparkPlayer_watch_next, m_config.watch_next);
+        m_config.bottom_settings_menu = style.getBoolean(
             R.styleable.SparkPlayer_bottom_settings_menu,
-            m_config.m_bottom_settings_menu);
-        m_config.m_auto_fullscreen = style.getBoolean(
+            m_config.bottom_settings_menu);
+        m_config.auto_fullscreen = style.getBoolean(
             R.styleable.SparkPlayer_auto_fullscreen,
-            m_config.m_auto_fullscreen);
+            m_config.auto_fullscreen);
         m_max_height = style.getDimensionPixelSize(
             R.styleable.SparkPlayer_max_height, Integer.MAX_VALUE);
         m_max_width = style.getDimensionPixelSize(
             R.styleable.SparkPlayer_max_width, Integer.MAX_VALUE);
+        m_config.bottom_edge_timebar = style.getBoolean(
+            R.styleable.SparkPlayer_bottom_edge_timebar,
+            m_config.bottom_edge_timebar);
         style.recycle();
     }
     setup_player();
@@ -137,7 +143,7 @@ public SparkPlayer(Context context, AttributeSet attrs){
 private void setup_player(){
     LayoutInflater.from(m_context).inflate(R.layout.spark_player, this);
     setDescendantFocusability(FOCUS_AFTER_DESCENDANTS);
-    EventListener listener = new EventListener();
+    m_listener = new SparkEventListener();
     m_content = findViewById(R.id.spark_player_content);
     Display display = ((WindowManager)m_context.getSystemService(Context
         .WINDOW_SERVICE)).getDefaultDisplay();
@@ -153,12 +159,11 @@ private void setup_player(){
     m_state.m_inited = m_controller.init(m_context, m_overlay);
     m_exoplayer = m_controller.get_exoplayer();
     m_controlbar_enabled = true;
-    m_controlbar = findViewById(R.id.spark_player_controlbar);
-    m_controlbar.set_spark_player(this);
-    m_controlbar.show();
-    m_controller.set_controlbar(m_controlbar);
-    m_controller.add_event_listener(listener);
-    m_controller.get_exoplayer().addListener(listener);
+    m_control_view = findViewById(R.id.spark_playback_control);
+    m_control_view.setPlayer(this);
+    m_control_view.show();
+    m_controller.add_event_listener(m_listener);
+    m_controller.get_exoplayer().addListener(m_listener);
     m_fullscreen = new FullScreenPlayer(m_context);
     m_gesturedetector = new GestureDetector(m_context, this);
     m_gesturedetector.setIsLongpressEnabled(false);
@@ -178,6 +183,7 @@ private void setup_player(){
     check_create_video_view();
     update_poster_state();
 }
+public ExoPlayerController get_controller(){ return m_controller; }
 public void setup_spark_modules(SparkPlayerConfig config){
     try {
         Class<?> spark_factory = Class.forName("com.spark.library.SparkLoaderFactory");
@@ -192,22 +198,22 @@ public void setup_spark_modules(SparkPlayerConfig config){
             switch (m.get_name())
             {
                 case "playlist":
-                    if (config.m_watch_next && m_spark_watch_next==null)
+                    if (config.watch_next && m_spark_watch_next==null)
                         m_spark_watch_next = m.init(this, m_controller);
                     break;
                 case "thumbnails":
-                    if (config.m_thumbnails && m_spark_thumbnails==null)
+                    if (config.thumbnails && m_spark_thumbnails==null)
                         m_spark_thumbnails = m.init(this, m_controller);
                     break;
                 case "persistent_video":
-                    if (config.m_floatmode && !config.m_vrmode &&
+                    if (config.floatmode && !config.vrmode &&
                         m_spark_persistent==null)
                     {
                         m_spark_persistent = m.init(this, m_controller);
                     }
                     break;
                 case "position_memory":
-                    if (config.m_position_memory && m_spark_position==null)
+                    if (config.position_memory && m_spark_position==null)
                         m_spark_position = m.init(this, m_controller);
                     break;
             }
@@ -283,9 +289,9 @@ protected void onMeasure(int width_spec, int height_spec){
 @Override
 public void vr_mode(Boolean state){
     Log.d(Const.TAG, "set video vr mode "+state);
-    if (m_config.m_vrmode==state)
+    if (m_config.vrmode==state)
         return;
-    m_config.m_vrmode = state;
+    m_config.vrmode = state;
     check_create_video_view();
 }
 public static void set_customer(Context m_context, String customer){
@@ -298,14 +304,14 @@ public static String get_customer(){ return m_customer; }
 public View get_video_view() {return m_video_view; }
 private synchronized void check_create_video_view(){
     Log.d(Const.TAG, "check_create_video_view ad:"+m_controller.is_playing_ad());
-    if (!m_state.m_inited || m_video_view!=null && ((m_config.m_vrmode &&
+    if (!m_state.m_inited || m_video_view!=null && ((m_config.vrmode &&
         !m_controller.is_playing_ad()) == m_state.m_vr_active))
     {
         return;
     }
     if (m_video_view!=null)
         m_content.removeView(m_video_view);
-    if (m_config.m_vrmode && !m_controller.is_playing_ad())
+    if (m_config.vrmode && !m_controller.is_playing_ad())
     {
         Log.d(Const.TAG, "add 360 degree video view");
         m_panx = 0.0f;
@@ -363,7 +369,7 @@ public void queue(PlayItem item){
     m_controller.queue(item);
     String poster = item.get_poster();
     set_poster(poster);
-    m_controlbar.hide();
+    m_control_view.hide();
 }
 public String get_title() { return m_title; }
 @Override
@@ -392,6 +398,8 @@ private void update_keep_screen_state(){
 @Override
 public void uninit(){
     Log.d(Const.TAG, "uninit");
+    m_controller.get_exoplayer().removeListener(m_listener);
+    m_controller.remove_event_listener(m_listener);
     m_controller.uninit();
 }
 private boolean is_fully_visible(){
@@ -408,7 +416,7 @@ public void onConfigurationChanged(Configuration conf){
     if (m_prev_conf_orientation==conf.orientation)
         return;
     m_prev_conf_orientation = conf.orientation;
-    if (m_config.m_auto_fullscreen && getPlaybackState()!=Player.STATE_IDLE &&
+    if (m_config.auto_fullscreen && getPlaybackState()!=Player.STATE_IDLE &&
         conf.orientation==Configuration.ORIENTATION_LANDSCAPE &&
         get_aspect()>1 && is_fully_visible() && !is_floating())
     {
@@ -448,19 +456,21 @@ private void show_fullscreen(){
         lp.width = lp.height = Utils.dp2px(m_context, 64);
     }
     m_loading.setLayoutParams(lp);
-    for (SparkPlayerAPI.EventListener listener : m_listeners)
+    for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
         listener.on_fullscreen_changed(m_state.m_fullscreen);
+    for (EventListener listener : m_listeners)
+        listener.onFullscreenChanged(m_state.m_fullscreen);
 }
 public FullScreenPlayer get_fullscreen(){ return m_fullscreen; }
 public boolean is_fullscreen(){ return m_state.m_fullscreen; }
 @Override
 public void float_mode(Boolean state){
-    if (!m_state.m_inited || m_config.m_floatmode == state ||
+    if (!m_state.m_inited || m_config.floatmode== state ||
         m_spark_persistent==null)
     {
         return;
     }
-    m_config.m_floatmode = state;
+    m_config.floatmode = state;
     m_spark_persistent.set_status(state ? Const.feature_status.ENABLED :
         Const.feature_status.DISABLED);
 }
@@ -499,16 +509,16 @@ public float get_aspect(){
 public void set_controls_state(boolean enabled){
     m_controlbar_enabled = enabled;
     if (!enabled)
-        m_controlbar.hide();
+        m_control_view.hide();
 }
 @Override
 public boolean get_controls_state(){ return m_controlbar_enabled; }
 @Override
 public void set_controls_visibility(boolean visible){
     if (visible)
-        m_controlbar.show();
+        m_control_view.show();
     else
-        m_controlbar.hide();
+        m_control_view.hide();
 }
 public void set_ad_overlay_visibility(boolean visible){
     if (m_overlay==null)
@@ -517,7 +527,7 @@ public void set_ad_overlay_visibility(boolean visible){
 }
 @Override
 public boolean get_controls_visibility(){
-    return m_controlbar.isVisible();
+    return m_control_view.isVisible();
 }
 @Override
 public boolean get_vr_mode(){ return m_state.m_vr_active; }
@@ -576,10 +586,10 @@ public boolean onSingleTapUp(MotionEvent e){
     if (!m_state.m_inited || is_floating())
         return false;
     requestDisallowInterceptTouchEvent(false);
-    if (m_controlbar.isVisible())
-        m_controlbar.hide();
+    if (m_control_view.isVisible())
+        m_control_view.hide();
     else if (m_controlbar_enabled)
-        m_controlbar.show();
+        m_control_view.show();
     return true;
 }
 @Override
@@ -596,6 +606,14 @@ public void addListener(Player.EventListener listener){
 @Override
 public void removeListener(Player.EventListener listener){
     m_exoplayer.removeListener(listener); }
+public void addListener(EventListener listener){
+    m_exoplayer.addListener(listener);
+    m_listeners.add(listener);
+}
+public void removeListener(EventListener listener){
+    m_exoplayer.removeListener(listener);
+    m_listeners.remove(listener);
+}
 @Override
 public int getPlaybackState(){
     return m_exoplayer.getPlaybackState();
@@ -659,7 +677,7 @@ public void onResume(){
         ((SpectaculumView)m_video_view).onResume();
 }
 @Override
-public void release(){ m_controller.uninit(); }
+public void release(){ this.uninit(); }
 @Override
 public int getRendererCount(){
     return m_exoplayer.getRendererCount();
@@ -760,19 +778,41 @@ public long get_position(){ return getCurrentPosition(); }
 public long get_duration(){ return getDuration(); }
 @Override @Deprecated
 public void add_listener(SparkPlayerAPI.EventListener listener){
-    m_listeners.add(listener); }
+    m_listeners_dep.add(listener); }
 @Override @Deprecated
 public void remove_listener(SparkPlayerAPI.EventListener listener){
-    m_listeners.remove(listener); }
+    m_listeners_dep.remove(listener); }
 
-private class EventListener extends Player.DefaultEventListener implements
+public interface EventListener extends Player.EventListener {
+    void onFullscreenChanged(boolean is_fullscreen);
+    void onNewVideo(String url);
+    void onTimeUpdate(int position);
+    void onAdStart();
+    void onAdEnd();
+}
+
+public static abstract class DefaultEventListener
+    extends Player.DefaultEventListener implements EventListener {
+    @Override
+    public void onFullscreenChanged(boolean is_fullscreen){}
+    @Override
+    public void onNewVideo(String url){}
+    @Override
+    public void onTimeUpdate(int position){}
+    @Override
+    public void onAdStart(){}
+    @Override
+    public void onAdEnd(){}
+}
+
+private class SparkEventListener extends Player.DefaultEventListener implements
     ExoPlayerController.VideoEventListener, InputSurfaceHolder.Callback
 {
     private boolean m_play_when_ready = false;
     private int m_playback_state = Player.STATE_IDLE;
     @Override
     public void onPlayerStateChanged(boolean play_when_ready, int playback_state){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
         {
             if (m_play_when_ready!=play_when_ready)
             {
@@ -792,38 +832,38 @@ private class EventListener extends Player.DefaultEventListener implements
     }
     @Override
     public void onSeekProcessed(){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_seeked();
     }
     @Override
     public void onPlayerError(ExoPlaybackException error){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_error(error);
     }
     @Override
     public void onTimelineChanged(Timeline timeline, Object manifest){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_timeline_changed(timeline, manifest);
     }
     @Override
     public void onTracksChanged(TrackGroupArray track_groups, TrackSelectionArray track_selections){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_tracks_changed(track_groups, track_selections);
     }
     @Override
     public void onLoadingChanged(boolean is_loading){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_loading_changed(is_loading);
     }
     @Override
     public void onPositionDiscontinuity(@Player.DiscontinuityReason int reason){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_position_discontinuity(reason);
     }
 
     @Override
     public void onPlaybackParametersChanged(PlaybackParameters playback_parameters){
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_playback_parameters_changed(playback_parameters);
     }
     @Override
@@ -850,8 +890,10 @@ private class EventListener extends Player.DefaultEventListener implements
         Log.d(Const.TAG, "ad started st:"+m_controller.is_playing_ad());
         set_controls_state(false);
         check_create_video_view();
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_ad_start();
+        for (EventListener listener : m_listeners)
+            listener.onAdStart();
         update_loading_state();
     }
     @Override
@@ -859,14 +901,24 @@ private class EventListener extends Player.DefaultEventListener implements
         Log.d(Const.TAG, "ad ended st:"+m_controller.is_playing_ad());
         set_controls_state(true);
         check_create_video_view();
-        for (SparkPlayerAPI.EventListener listener : m_listeners)
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
             listener.on_ad_end();
+        for (EventListener listener : m_listeners)
+            listener.onAdEnd();
         update_loading_state();
     }
     @Override
-    public void time_update(int cur_pos){}
+    public void time_update(int cur_pos){
+        for (EventListener listener : m_listeners)
+            listener.onTimeUpdate(cur_pos);
+    }
     @Override
-    public void on_new_video(String url){}
+    public void on_new_video(String url){
+        for (SparkPlayerAPI.EventListener listener : m_listeners_dep)
+            listener.on_new_video(url);
+        for (EventListener listener : m_listeners)
+            listener.onNewVideo(url);
+    }
     @Override
     public void surfaceCreated(InputSurfaceHolder holder){
         m_controller.set_texture(holder.getSurfaceTexture()); }

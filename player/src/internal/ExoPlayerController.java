@@ -88,7 +88,6 @@ private List<VideoEventListener> m_clientlistener = new LinkedList<>();
 private ImaAdsLoader m_ads_loader;
 private ViewGroup m_overlay;
 private Surface m_surface;
-private PlayerControlView m_controlbar;
 private boolean m_surface_own;
 private String m_customer;
 private boolean m_render_first = false;
@@ -109,7 +108,7 @@ public boolean init(Context context, ViewGroup overlay)
     m_context = context;
     m_overlay = overlay;
     RenderersFactory factory = new DefaultRenderersFactory(context);
-     m_handler = new Handler(Looper.myLooper() != null ?
+    m_handler = new Handler(Looper.myLooper() != null ?
         Looper.myLooper() : Looper.getMainLooper());
     m_listener = new Listener();
     m_renderers = factory
@@ -306,13 +305,6 @@ void set_quality(QualityItem item){
     m_trackselector
         .setSelectionOverride(item.m_renderer_index, item.m_groups, override);
 }
-public void set_controlbar(PlayerControlView controlbar){
-    m_controlbar = controlbar;
-    m_controlbar.setPlayer(m_exoplayer);
-    m_controlbar.set_player_controller(this);
-}
-public PlayerControlView get_controlbar(){
-    return m_controlbar; }
 public void add_event_listener(VideoEventListener listener){
     m_clientlistener.add(listener); }
 public void remove_event_listener(VideoEventListener listener){
@@ -332,10 +324,11 @@ private void release_ads_loader(){
         ((WebView)web_view).destroy();
 }
 public void uninit(){
+    m_exoplayer.release();
     remove_video_view_callback();
     m_video_view = null;
-    set_surface(null);
-    m_exoplayer.release();
+    if (m_surface_own)
+        m_surface.release();
     release_ads_loader();
     WebViewController.unregister(this);
 }

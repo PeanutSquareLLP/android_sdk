@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<merge xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
     <com.google.android.exoplayer2.ui.AspectRatioFrameLayout
         android:id="@id/spark_player_content"
         android:layout_width="match_parent"
@@ -24,11 +23,10 @@
             android:layout_height="match_parent"
             android:scaleType="fitCenter"/>
     </FrameLayout>
-    <com.spark.player.internal.PlayerControlView
-        android:id="@id/spark_player_controlbar"
+    <com.spark.player.internal.PlaybackControlView
+        android:id="@+id/spark_playback_control"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:controller_layout_id="@layout/spark_player_controlbar"/>
+        android:layout_height="match_parent" />
     <ProgressBar android:id="@+id/spark_loading_progress"
         android:theme="@style/SparkCircularProgress"
         android:layout_width="64dp"

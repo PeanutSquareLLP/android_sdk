@@ -8,4 +8,5 @@
     <color name="unplayed">#55FFFFFF</color>
     <color name="buffered">#CCFFFFFF</color>
     <color name="ad_marker">#B2FFFF00</color>
+    <color name="played_ad_marker">#00FFFF00</color>
 </resources>
