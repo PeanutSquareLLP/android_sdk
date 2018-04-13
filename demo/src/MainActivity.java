@@ -161,12 +161,13 @@ public void create_articles(JSONArray json){
                     continue;
 
             } catch (Exception ignored){}
-            m_articles.add(new Article(poster, desc, lorem, url));
+            m_articles.add(new Article(poster, desc, lorem, url, i%2==1 ?
+                R.string.ad_tag : R.string.ad_tag2));
         }
         m_articles.add(new Article("","360 VR player", lorem,
-            getString(R.string.video_url_hls_vr)));
+            getString(R.string.video_url_hls_vr), 0));
         m_articles.add(new Article("","Live video", lorem,
-            getString(R.string.video_url_live)));
+            getString(R.string.video_url_live), 0));
         ArticleAdapter adapter = new ArticleAdapter(this, R.layout.listview_item,
             m_articles.toArray(new Article[0]));
         setListAdapter(adapter);
@@ -196,6 +197,7 @@ protected void onListItemClick(ListView listview, View view, int pos, long id){
     intent.putExtra("video_url", article.m_video_url);
     intent.putExtra("poster_url", article.m_image_url);
     intent.putExtra("title", article.m_title);
+    intent.putExtra("ad_tag", article.m_ad_tag);
     startActivity(intent);
 }
 @Override
@@ -210,15 +212,19 @@ public void onBackPressed(){
 }
 
 class Article {
-    String m_image_url;
-    String m_title;
-    String m_text;
-    String m_video_url;
-    Article(String image_url, String title, String text, String video_url){
+    final String m_image_url;
+    final String m_title;
+    final String m_text;
+    final String m_video_url;
+    final int m_ad_tag;
+    Article(String image_url, String title, String text, String video_url,
+        int ad_tag)
+    {
         m_image_url = Utils.fix_url(image_url);
         m_title = title;
         m_text = text;
         m_video_url = Utils.fix_url(video_url);
+        m_ad_tag = ad_tag;
     }
 }
 

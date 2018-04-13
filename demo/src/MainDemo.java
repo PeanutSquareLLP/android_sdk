@@ -16,6 +16,7 @@ private String m_video_url;
 private String m_poster_url;
 private String m_title;
 private boolean m_playing = true;
+private int m_ad_tag;
 @Override
 protected void onCreate(Bundle saved_state){
     super.onCreate(saved_state);
@@ -24,6 +25,7 @@ protected void onCreate(Bundle saved_state){
     m_video_url = intent.getStringExtra("video_url");
     m_poster_url= intent.getStringExtra("poster_url");
     m_title = intent.getStringExtra("title");
+    m_ad_tag = intent.getIntExtra("ad_tag", 0);
     m_spark_player = findViewById(R.id.float_player);
     m_listener = new SampleListener();
     m_spark_player.addListener(m_listener);
@@ -73,7 +75,7 @@ protected void onDestroy(){
 public void init(){
     final boolean vr = m_video_url.equals(getString(R.string.video_url_hls_vr));
     m_spark_player.vr_mode(vr);
-    m_spark_player.queue(new PlayItem(vr ? null : getString(R.string.ad_tag),
+    m_spark_player.queue(new PlayItem(m_ad_tag>0 ? getString(m_ad_tag) : null,
         m_video_url, m_poster_url, m_title));
 }
 class SampleListener extends Player.DefaultEventListener {

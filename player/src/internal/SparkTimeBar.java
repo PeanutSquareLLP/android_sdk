@@ -12,6 +12,7 @@ import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.view.MotionEvent;
+import android.view.TouchDelegate;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -38,6 +39,7 @@ private final Rect m_seek_bounds;
 private final Rect m_progress_bar;
 private final Rect m_buffered_bar;
 private final Rect m_scrub_bar;
+private final Rect m_touch_delegate_bounds;
 private final Paint m_played_paint;
 private final Paint m_buffered_paint;
 private final Paint m_unplayed_paint;
@@ -58,6 +60,7 @@ private int m_last_coarse_scrub_x_position;
 private int[] m_location_on_screen;
 private Point m_touch_position;
 private boolean m_scrubbing;
+private boolean m_playhead_visible;
 private long m_scrub_position;
 private long m_duration;
 private long m_position;
@@ -74,6 +77,7 @@ public SparkTimeBar(Context context, AttributeSet attrs){
     m_progress_bar = new Rect();
     m_buffered_bar = new Rect();
     m_scrub_bar = new Rect();
+    m_touch_delegate_bounds = new Rect();
     m_played_paint = new Paint();
     m_buffered_paint = new Paint();
     m_unplayed_paint = new Paint();
@@ -96,11 +100,16 @@ public SparkTimeBar(Context context, AttributeSet attrs){
     m_buffered_paint.setColor(res.getColor(R.color.buffered));
     m_unplayed_paint.setColor(res.getColor(R.color.unplayed));
     m_ad_marker_paint.setColor(res.getColor(R.color.ad_marker));
+    m_played_ad_marker_paint.setColor(res.getColor(R.color.played_ad_marker));
     m_format_builder = new StringBuilder();
     m_formatter = new Formatter(m_format_builder, Locale.getDefault());
     m_duration = C.TIME_UNSET;
     setFocusable(true);
 }
+
+public int getBarHeight(){ return m_bar_height; }
+
+public int getTouchHeight(){ return m_touch_height; }
 
 @Override
 public void addListener(OnScrubListener listener){
@@ -140,6 +149,8 @@ public void setDuration(long duration){
     update();
 }
 
+public boolean isScrubbing(){ return m_scrubbing; }
+
 @Override
 public void setAdGroupTimesMs(@Nullable long[] adGroupTimesMs,
     @Nullable boolean[] playedAdGroups, int adGroupCount)
@@ -169,7 +180,7 @@ public void onDraw(Canvas canvas){
 
 @Override
 public boolean onTouchEvent(MotionEvent event){
-    if (!isEnabled() || m_duration<=0)
+    if (!isEnabled() || m_duration<=0 || !m_playhead_visible)
         return false;
     Point touchPosition = resolveRelativeTouchPosition(event);
     int x = touchPosition.x;
@@ -224,14 +235,14 @@ public boolean onTouchEvent(MotionEvent event){
 @Override
 protected void onDetachedFromWindow(){
     super.onDetachedFromWindow();
-    hidePlayhead();
+    setOverlayParent(null);
 }
 
 @Override
 protected void onMeasure(int width_spec, int height_spec){
     int height_mode = MeasureSpec.getMode(height_spec);
     int height_size = MeasureSpec.getSize(height_spec);
-    int height = height_mode==MeasureSpec.UNSPECIFIED ? m_touch_height :
+    int height = height_mode==MeasureSpec.UNSPECIFIED ? m_touch_height:
         height_mode==MeasureSpec.EXACTLY ? height_size :
         Math.min(m_touch_height, height_size);
     setMeasuredDimension(MeasureSpec.getSize(width_spec), height);
@@ -251,21 +262,40 @@ protected void onLayout(boolean changed, int left, int top, int right,
     m_progress_bar.set(m_seek_bounds.left, progress_y, m_seek_bounds.right,
         progress_y+m_bar_height);
     if (changed)
-        findOverflowParent(bottom);
+        findOverflowParent(top, bottom);
+    if (changed && m_overlay_parent!=null)
+    {
+        m_touch_delegate_bounds.set(m_seek_bounds);
+        m_overlay_parent.offsetDescendantRectToMyCoords(this,
+            m_touch_delegate_bounds);
+        m_overlay_parent.setTouchDelegate(
+            new TouchDelegate(m_touch_delegate_bounds, this));
+    }
     update();
 }
 
-private void findOverflowParent(int bottom){
-    ViewGroup parent = (ViewGroup)getParent();
-    while (parent!= null && bottom > parent.getHeight())
+private void findOverflowParent(int top, int bottom){
+    bottom += (m_touch_height-(bottom-top))/2;
+    ViewParent parent = getParent();
+    while (parent!= null && parent instanceof ViewGroup &&
+        bottom > ((ViewGroup)parent).getHeight())
     {
-        bottom += parent.getBottom();
-        parent = (ViewGroup)parent.getParent();
+        bottom += ((ViewGroup)parent).getBottom();
+        parent = parent.getParent();
     }
-    if (m_overlay_parent==parent)
-        return;
-    hidePlayhead();
-    m_overlay_parent = parent;
+    if (m_overlay_parent!=parent)
+        setOverlayParent(parent);
+}
+
+private void setOverlayParent(ViewParent parent){
+    if (m_playhead!=null && m_overlay_parent!=null)
+    {
+        m_overlay_parent.getOverlay().remove(m_playhead);
+        m_playhead = null;
+    }
+    if (m_overlay_parent!=null)
+        m_overlay_parent.setTouchDelegate(null);
+    m_overlay_parent = parent instanceof ViewGroup ? (ViewGroup)parent : null;
 }
 
 private void startScrubbing(){
@@ -377,18 +407,27 @@ private void drawTimeBar(Canvas canvas){
     }
 }
 
-private void hidePlayhead(){
-    if (m_playhead!=null && m_overlay_parent!=null)
+public void showPlayhead(boolean visible){
+    if (m_playhead_visible==visible)
+        return;
+    if (visible)
     {
-        m_overlay_parent.getOverlay().remove(m_playhead);
-        m_playhead = null;
+        m_playhead_visible = true;
+        drawPlayhead();
+        return;
     }
-    m_overlay_parent = null;
+    m_playhead_visible = false;
+    if (m_playhead!=null && m_overlay_parent!=null)
+        m_overlay_parent.getOverlay().remove(m_playhead);
+    m_playhead = null;
 }
 
 private void drawPlayhead(){
-    if (m_duration<=0 || m_overlay_parent==null)
+    if (m_duration<=0 || m_overlay_parent==null || !m_playhead_visible ||
+        !isShown())
+    {
         return;
+    }
     int size = (m_scrubbing || isFocused()) ? m_scrubber_dragged_size
         : (isEnabled() ? m_scrubber_enabled_size : m_scrubber_disabled_size);
     int radius = size/2;
@@ -402,15 +441,8 @@ private void drawPlayhead(){
         m_overlay_parent.getOverlay().add(m_playhead);
     }
     final Rect r = new Rect(x-radius, y-radius, x+radius, y+radius);
-    m_overlay_parent.post(new Runnable() {
-        public void run(){
-            if (m_overlay_parent==null || m_playhead==null)
-                return;
-            m_overlay_parent.offsetDescendantRectToMyCoords(
-                SparkTimeBar.this, r);
-            m_playhead.setBounds(r);
-        }
-    });
+    m_overlay_parent.offsetDescendantRectToMyCoords(this, r);
+    m_playhead.setBounds(r);
 }
 
 private static int dpToPx(DisplayMetrics displayMetrics, int dps){

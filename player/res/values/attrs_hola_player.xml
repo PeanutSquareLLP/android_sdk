@@ -12,5 +12,6 @@
         <attr name="auto_fullscreen" format="boolean"/>
         <attr name="max_height" format="dimension"/>
         <attr name="max_width" format="dimension"/>
+        <attr name="bottom_edge_timebar" format="boolean"/>
     </declare-styleable>
 </resources>

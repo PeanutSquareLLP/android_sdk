@@ -8,4 +8,6 @@
     <string name="live">LIVE</string>
     <string name="powered_by">Spark Player %1$s</string>
     <string name="bullet">\u2022</string>
+    <string name="wait_ad">You can skip this ad in</string>
+    <string name="skip_ad">Skip Ad \u25baI</string>
 </resources>

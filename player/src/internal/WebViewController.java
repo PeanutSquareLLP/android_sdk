@@ -15,8 +15,10 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import com.spark.player.BuildConfig;
 import com.spark.player.Const;
+import com.spark.player.SparkPlayer;
+
 public final class WebViewController {
-static boolean m_js_inited = false;
+public static boolean m_js_inited = false;
 private static String[] m_features = new String[]{};
 private WebViewController(){}
 private static Handler m_handler;
@@ -35,7 +37,7 @@ public static boolean check_feature(String name){
     }
     return false;
 }
-static synchronized void trigger_js(){
+public static synchronized void trigger_js(){
     if (m_js_inited)
         return;
     m_js_inited = true;
@@ -44,7 +46,7 @@ static synchronized void trigger_js(){
 private static class WebViewHolder {
     private static WebView m_webview;
 }
-static WebView get_instance(){ return WebViewHolder.m_webview; }
+public static WebView get_instance(){ return WebViewHolder.m_webview; }
 public static synchronized void init(Context ctx, String customer_id,
     boolean force)
 {
@@ -127,18 +129,18 @@ private static void check_ready(){
             }
         });
 }
-static boolean is_ready(){ return m_ready; }
-static void register(ExoPlayerController exoPlayerController){
+public static boolean is_ready(){ return m_ready; }
+public static void register(SparkPlayer player){
     if (m_proxy==null)
         return;
-    m_proxy.register_proxy(exoPlayerController);
+    m_proxy.register_proxy(player);
 }
-static void unregister(ExoPlayerController exoPlayerController){
+public static void unregister(SparkPlayer player){
     if (m_proxy==null)
         return;
-    m_proxy.unregister_proxy(exoPlayerController);
+    m_proxy.unregister_proxy(player);
 }
-static void evaluate(String script, ValueCallback<String> cb){
+public static void evaluate(String script, ValueCallback<String> cb){
     if (get_instance()==null)
         return;
     get_instance().evaluateJavascript(script, cb);

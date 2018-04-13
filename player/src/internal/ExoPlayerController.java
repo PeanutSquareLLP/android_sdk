@@ -1,18 +1,18 @@
 package com.spark.player.internal;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
 import android.net.Uri;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.Looper;
+import android.os.Message;
+import android.os.Process;
 import android.util.Log;
 import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
-import android.webkit.ValueCallback;
-import android.webkit.WebView;
 import com.google.ads.interactivemedia.v3.api.player.VideoAdPlayer;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultLoadControl;
@@ -29,7 +29,6 @@ import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.audio.AudioRendererEventListener;
 import com.google.android.exoplayer2.decoder.DecoderCounters;
-import com.google.android.exoplayer2.ext.ima.ImaAdsLoader;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.metadata.Metadata;
 import com.google.android.exoplayer2.metadata.MetadataOutput;
@@ -39,7 +38,6 @@ import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
-import com.google.android.exoplayer2.source.ads.AdsMediaSource;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
@@ -60,10 +58,8 @@ import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.video.VideoRendererEventListener;
-import com.spark.player.BuildConfig;
 import com.spark.player.Const;
 import com.spark.player.SparkPlayer;
-import com.spark.player.SparkPlayerCallback;
 import com.spark.player.PlayItem;
 import net.protyposis.android.spectaculum.InputSurfaceHolder;
 import net.protyposis.android.spectaculum.SpectaculumView;
@@ -71,12 +67,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 import java.util.Vector;
 public class ExoPlayerController {
 private static final TrackSelection.Factory FIXED_FACTORY = new FixedTrackSelection.Factory();
 private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
+private static final int MSG_RELEASE = 0;
+private static final int MSG_SETSURFACE = 1;
 private final SparkPlayer m_player;
+private HandlerThread m_handlerthread;
+private ExoPlayerSafeHandler m_internalhandler;
 private Context m_context;
 private ExoPlayer m_exoplayer;
 private Listener m_listener;
@@ -85,31 +84,27 @@ private DefaultTrackSelector m_trackselector;
 private Handler m_handler;
 private DefaultDataSourceFactory m_datasource;
 private List<VideoEventListener> m_clientlistener = new LinkedList<>();
-private ImaAdsLoader m_ads_loader;
+private SparkAdsLoader m_ads_loader = null;
 private ViewGroup m_overlay;
 private Surface m_surface;
-private PlayerControlView m_controlbar;
 private boolean m_surface_own;
 private String m_customer;
 private boolean m_render_first = false;
 final private thread_t m_timeupdate = new thread_t();
-final private Queue<String> m_msg_queue = new LinkedList<>();
 private String m_state = "NONE";
 private String m_media_url = "";
 private View m_video_view;
-private boolean m_js_attach_ready = false;
 // XXX pavelki/andrey: TODO
 public ExoPlayerController(SparkPlayer spark_player){
     m_player = spark_player;
     m_customer = SparkPlayer.get_customer();
 }
-public SparkPlayer get_player(){ return m_player; }
 public boolean init(Context context, ViewGroup overlay)
 {
     m_context = context;
     m_overlay = overlay;
     RenderersFactory factory = new DefaultRenderersFactory(context);
-     m_handler = new Handler(Looper.myLooper() != null ?
+    m_handler = new Handler(Looper.myLooper() != null ?
         Looper.myLooper() : Looper.getMainLooper());
     m_listener = new Listener();
     m_renderers = factory
@@ -125,10 +120,11 @@ public boolean init(Context context, ViewGroup overlay)
         new DefaultHttpDataSourceFactory(
             Util.getUserAgent(m_context, Const.PLAYER_NAME), BANDWIDTH_METER));
     m_state = "IDLE";
-    WebViewController.register(this);
-    if (!WebViewController.m_js_inited || !m_js_attach_ready)
-        check_hola();
     set_customer(m_customer);
+    m_handlerthread = new HandlerThread("SparkPlayer:Internal",
+        Process.THREAD_PRIORITY_FOREGROUND);
+    m_handlerthread.start();
+    m_internalhandler = new ExoPlayerSafeHandler(m_handlerthread.getLooper());
     return true;
 }
 private void set_customer(String customer){
@@ -136,16 +132,11 @@ private void set_customer(String customer){
         return;
     m_customer = customer;
     m_exoplayer.addListener(m_listener);
-    send_msg("attach", null);
 }
-public void play(){ m_exoplayer.setPlayWhenReady(true); }
-public void pause(){ m_exoplayer.setPlayWhenReady(false); }
-void seek(long position){ m_exoplayer.seekTo(position); }
 public void load(String uri){ queue(new PlayItem(null, uri)); }
 public void queue(PlayItem item){
     // XXX pavelki: no real queue at the moment
     MediaSource media_source = null;
-    String ad_tag = item.get_ad_tag();
     Uri uri = Uri.parse(item.get_media());
     int media_type = ContentTypeDetector.detect_source(uri);
     m_media_url = uri.toString();
@@ -167,13 +158,14 @@ public void queue(PlayItem item){
     }
     if (media_source == null)
         return;
-    if (ad_tag != null && m_overlay != null)
+    if (item.get_ad_tag() != null && m_overlay != null)
     {
         release_ads_loader();
-        m_ads_loader = new ImaAdsLoader(m_context, Uri.parse(ad_tag));
-        media_source =
-            new AdsMediaSource(media_source, m_datasource, m_ads_loader, m_overlay);
-        m_ads_loader.addCallback(m_listener);
+        m_ads_loader = new SparkAdsLoader(m_context, item, m_exoplayer,
+            m_internalhandler);
+        media_source = m_ads_loader.get_media_source(media_source, m_datasource,
+            m_overlay);
+        m_ads_loader.add_callback(m_listener);
     }
     update_state("STARTING");
     m_exoplayer.prepare(media_source);
@@ -223,18 +215,9 @@ private void set_surface(Surface surface){
     Log.d(Const.TAG, "set surface "+surf);
     if (m_surface != null && m_surface_own)
         m_surface.release();
-    Vector<ExoPlayer.ExoPlayerMessage> messages = new Vector<>();
-    for (Renderer renderer : m_renderers)
-    {
-        if (renderer.getTrackType() != C.TRACK_TYPE_VIDEO)
-            continue;
-        messages.add(
-            new ExoPlayer.ExoPlayerMessage(renderer, C.MSG_SET_SURFACE, surf));
-    }
-    m_exoplayer.blockingSendMessages(messages.toArray(new ExoPlayer.ExoPlayerMessage[messages.size()]));
     m_surface = surface;
+    m_internalhandler.sendEmptyMessage(MSG_SETSURFACE);
 }
-public float get_aspect(){ return m_listener.m_video_aspect; }
 public int get_video_width(){ return m_listener.m_video_width; }
 public int get_video_height(){ return m_listener.m_video_height; }
 public boolean has_video_track(){
@@ -306,13 +289,6 @@ void set_quality(QualityItem item){
     m_trackselector
         .setSelectionOverride(item.m_renderer_index, item.m_groups, override);
 }
-public void set_controlbar(PlayerControlView controlbar){
-    m_controlbar = controlbar;
-    m_controlbar.setPlayer(m_exoplayer);
-    m_controlbar.set_player_controller(this);
-}
-public PlayerControlView get_controlbar(){
-    return m_controlbar; }
 public void add_event_listener(VideoEventListener listener){
     m_clientlistener.add(listener); }
 public void remove_event_listener(VideoEventListener listener){
@@ -320,56 +296,23 @@ public void remove_event_listener(VideoEventListener listener){
 private void release_ads_loader(){
     if (m_ads_loader==null)
         return;
+    m_ads_loader.remove_callback(m_listener);
     m_ads_loader.release();
     m_ads_loader = null;
-    View web_view = null;
-    if (m_overlay!=null && m_overlay.getChildCount()>0)
-    {
-        web_view = m_overlay.getChildAt(0);
-        m_overlay.removeAllViews();
-    }
-    if (web_view!=null && web_view instanceof WebView)
-        ((WebView)web_view).destroy();
 }
 public void uninit(){
+    m_internalhandler.sendEmptyMessage(MSG_RELEASE);
     remove_video_view_callback();
     m_video_view = null;
-    set_surface(null);
-    m_exoplayer.release();
+    if (m_surface!=null && m_surface_own)
+        m_surface.release();
     release_ads_loader();
-    WebViewController.unregister(this);
-}
-public boolean is_playing(){
-    return m_exoplayer.getPlayWhenReady() &&
-        m_exoplayer.getPlaybackState()==Player.STATE_READY;
-}
-public boolean is_paused(){ return !m_exoplayer.getPlayWhenReady(); }
-public boolean is_playing_ad(){ return m_exoplayer.isPlayingAd(); }
-public void send_spark_message(String type, final String subtype,
-    final String param1, final int param2, final SparkPlayerCallback cb)
-{
-    // XXX andrey/pavelki: future reserve
-    if (BuildConfig.DEBUG && !type.equals("stats"))
-        throw new AssertionError();
-    if (!WebViewController.m_js_inited)
-        return;
-    m_handler.post(new Runnable() {
+    // defer thread quitting for 1000 ms
+    new Handler().postDelayed(new Runnable() {
         @Override
-        public void run(){
-            String script = "javascript:window.hola_cdn && hola_cdn.api.get_spark()"
-                +".stats."+subtype+"('"+param1+"',"+param2+")";
-            WebViewController.evaluate(script, new ValueCallback<String>() {
-                @Override
-                public void onReceiveValue(String s){
-                    if (cb!=null)
-                        cb.done(s);
-                }
-            });
-        }
-    });
+        public void run(){ m_handlerthread.quit(); }
+    }, 1000);
 }
-void js_inited(){ m_player.setup_spark_modules(m_player.get_config()); }
-void js_attach_ready(){ m_js_attach_ready = true; }
 private class thread_t implements Runnable {
     private int cur_pos = -1;
     private volatile Thread executor;
@@ -389,7 +332,7 @@ private class thread_t implements Runnable {
                 cur_pos = new_pos;
                 for (VideoEventListener listener:  ExoPlayerController.this.m_clientlistener)
                     listener.time_update(cur_pos);
-                send_msg("time", "\"pos\":"+cur_pos);
+                m_player.send_msg("time", "\"pos\":"+cur_pos);
             }
             try { Thread.sleep(250); }
             catch(InterruptedException e){}
@@ -403,14 +346,6 @@ public interface VideoEventListener {
     void on_ad_end();
     void time_update(int cur_pos);
     void on_new_video(String url);
-}
-public abstract static class DefaultVideoEventListener implements VideoEventListener {
-    public void on_video_size(int width, int height){}
-    public void on_rendered_first(){}
-    public void on_ad_start(){}
-    public void on_ad_end(){}
-    public void time_update(int cur_pos){}
-    public void on_new_video(String url){}
 }
 private final class Listener implements VideoRendererEventListener,
     AudioRendererEventListener, TextOutput, MetadataOutput,
@@ -653,93 +588,29 @@ private void update_state(String new_state){
         m_timeupdate.start();
     if (new_state.equals("IDLE")||new_state.equals("PAUSED"))
         m_timeupdate.stop();
-    send_msg("state", "\"data\":\""+new_state+'|'+m_state+"\"");
+    m_player.send_msg("state", "\"data\":\""+new_state+'|'+m_state+"\"");
     m_state = new_state;
 }
-private void send_msg(String cmd, String data){
-    final String msg = "{\"cmd\":\""+cmd+"\""+",\"hash\":"+this.hashCode()+
-        (data!=null ? ","+data : "")+"}";
-    m_handler.post(new Runnable(){
-        @Override
-        public void run(){
-            synchronized(m_msg_queue){
-                if (!m_js_attach_ready || m_msg_queue.size()>0)
-                {
-                    m_msg_queue.add(msg);
-                    return;
-                }
-            }
-            send_string(msg);
-        }
-    });
-}
-private void send_string(String msg){
-    Log.d(Const.TAG, "send message "+msg);
-    WebViewController.evaluate("javascript:window.hola_cdn && hola_cdn"+
-        ".android_message('"+msg+"')", null);
-}
-private void check_hola(){
-    if (!WebViewController.m_js_inited || !m_js_attach_ready)
-    {
-        m_handler.postDelayed(new Runnable() {
-            @Override
-            public void run(){ check_hola(); }
-        }, 300);
-    }
-    if (WebViewController.get_instance()==null || !WebViewController.is_ready())
-        return;
-    m_handler.post(new Runnable() {
-        @Override
-        public void run(){
-            WebViewController.evaluate("javascript:window.hola_cdn && "+
-                "typeof hola_cdn.android_message", new ValueCallback<String>()
+
+private class ExoPlayerSafeHandler extends Handler {
+    public ExoPlayerSafeHandler(Looper looper){ super(looper); }
+    @Override
+    public void handleMessage(Message msg) {
+        switch (msg.what)
+        {
+        case MSG_RELEASE: m_exoplayer.release(); break;
+        case MSG_SETSURFACE:
+            Vector<ExoPlayer.ExoPlayerMessage> messages = new Vector<>();
+            for (Renderer renderer : m_renderers)
             {
-                @Override
-                public void onReceiveValue(String s){
-                    if (!s.equals("\"function\""))
-                        return;
-                    Log.d(Const.TAG, "JS engine is inited");
-                    WebViewController.trigger_js();
-                    if (!m_js_attach_ready || m_msg_queue.size()<0)
-                        return;
-                    synchronized(m_msg_queue){
-                        Log.d(Const.TAG, "flush msg queue");
-                        if (m_msg_queue.size()>0)
-                        {
-                            for (String msg: m_msg_queue)
-                                send_string(msg);
-                            m_msg_queue.clear();
-                        }
-                    }
-                }
-            });
+                if (renderer.getTrackType() != C.TRACK_TYPE_VIDEO)
+                    continue;
+                messages.add(
+                    new ExoPlayer.ExoPlayerMessage(renderer, C.MSG_SET_SURFACE, m_surface));
+            }
+            m_exoplayer.blockingSendMessages(messages.toArray(new ExoPlayer.ExoPlayerMessage[messages.size()]));
+            break;
         }
-    });
-}
-long get_video_duration(){
-    // original getDuration() method returns ad duration when ad playing
-    Timeline timeline = m_exoplayer.getCurrentTimeline();
-    if (timeline.isEmpty())
-        return C.TIME_UNSET;
-    Timeline.Window window = new Timeline.Window();
-    return timeline.getWindow(m_exoplayer.getCurrentWindowIndex(),
-        window).getDurationMs();
-}
-long get_buffred_pos(){ return m_exoplayer.getBufferedPosition(); }
-int get_pos(){ return (int) m_exoplayer.getCurrentPosition(); }
-void seek(int ms){ this.seek((long)ms); }
-boolean is_live_stream(){ return m_exoplayer.isCurrentWindowDynamic(); }
-boolean is_prepared(){
-    int state = m_exoplayer.getPlaybackState();
-    return state != Player.STATE_IDLE;
-}
-String get_app_label(){
-    PackageManager pm = m_context.getPackageManager();
-    return (String) pm.getApplicationLabel(m_context.getApplicationInfo());
-}
-String get_poster(){ return m_player.get_poster(); }
-String get_title(){ return m_player.get_title(); }
-String module_cb(String module, String fn, String value){
-    return m_player.module_cb(module, fn, value);
+    }
 }
 }

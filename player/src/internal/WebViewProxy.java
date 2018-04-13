@@ -1,25 +1,29 @@
 package com.spark.player.internal;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.Player;
 import com.spark.player.Const;
+import com.spark.player.SparkPlayer;
 import java.lang.ref.WeakReference;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 final class WebViewProxy {
-private List<WeakReference<ExoPlayerController>> m_proxy_list;
+private List<WeakReference<SparkPlayer>> m_proxy_list;
 WebViewProxy(){
     m_proxy_list = new LinkedList<>();
     Log.d(Const.TAG, m_proxy_list.toString());
 }
-synchronized void register_proxy(ExoPlayerController proxy){
+synchronized void register_proxy(SparkPlayer proxy){
     m_proxy_list.add(new WeakReference<>(proxy)); }
-synchronized void unregister_proxy(ExoPlayerController proxy){
-    Iterator<WeakReference<ExoPlayerController>> it = m_proxy_list.iterator();
+synchronized void unregister_proxy(SparkPlayer proxy){
+    Iterator<WeakReference<SparkPlayer>> it = m_proxy_list.iterator();
     while (it.hasNext())
     {
-        ExoPlayerController proxy_test = it.next().get();
+        SparkPlayer proxy_test = it.next().get();
         if (proxy_test!=null && proxy_test.equals(proxy))
         {
             it.remove();
@@ -30,9 +34,9 @@ synchronized void unregister_proxy(ExoPlayerController proxy){
 @JavascriptInterface
 public synchronized String get_player_ids(){
     StringBuilder sb = new StringBuilder();
-    for (WeakReference<ExoPlayerController> p : m_proxy_list)
+    for (WeakReference<SparkPlayer> p : m_proxy_list)
     {
-        ExoPlayerController proxy_test = p.get();
+        SparkPlayer proxy_test = p.get();
         if (proxy_test!=null)
             sb.append(proxy_test.hashCode()).append(',');
     }
@@ -40,10 +44,10 @@ public synchronized String get_player_ids(){
         return "";
     return sb.substring(0, sb.length()-1);
 }
-private synchronized ExoPlayerController findPlayer(int hashCode){
-    for (WeakReference<ExoPlayerController> p : m_proxy_list)
+private synchronized SparkPlayer findPlayer(int hashCode){
+    for (WeakReference<SparkPlayer> p : m_proxy_list)
     {
-        ExoPlayerController proxy_test = p.get();
+        SparkPlayer proxy_test = p.get();
         if (proxy_test!=null && proxy_test.hashCode()==hashCode)
             return proxy_test;
     }
@@ -53,10 +57,10 @@ private synchronized ExoPlayerController findPlayer(int hashCode){
 @JavascriptInterface
 public long get_duration(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
         {
-            long dur = p.get_video_duration();
+            long dur = p.getVideoDuration();
             return dur==C.TIME_UNSET ? 0 : dur;
         }
     } catch(Exception e){
@@ -66,11 +70,11 @@ public long get_duration(int hashCode){
     return 0;
 }
 @JavascriptInterface
-public int get_pos(int hashCode){
+public long get_pos(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
-            return p.get_pos();
+            return p.getCurrentPosition();
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
@@ -78,11 +82,47 @@ public int get_pos(int hashCode){
     return 0;
 }
 @JavascriptInterface
+public boolean is_scrubbing(int hashCode){
+    try {
+        SparkPlayer p = findPlayer(hashCode);
+        if (p!=null)
+            return p.is_scrubbing();
+    } catch(Exception e){
+        Log.d(Const.TAG, "exception hash: "+hashCode);
+        Log.e(Const.TAG, "exception", e);
+    }
+    return false;
+}
+@JavascriptInterface
+public boolean is_seeking(int hashCode){
+    try {
+        SparkPlayer p = findPlayer(hashCode);
+        if (p!=null)
+            return p.is_seeking();
+    } catch(Exception e){
+        Log.d(Const.TAG, "exception hash: "+hashCode);
+        Log.e(Const.TAG, "exception", e);
+    }
+    return false;
+}
+@JavascriptInterface
+public boolean is_fullscreen(int hashCode){
+    try {
+        SparkPlayer p = findPlayer(hashCode);
+        if (p!=null)
+            return p.is_fullscreen();
+    } catch(Exception e){
+        Log.d(Const.TAG, "exception hash: "+hashCode);
+        Log.e(Const.TAG, "exception", e);
+    }
+    return false;
+}
+@JavascriptInterface
 public int get_ws_socket(){ return -1; }
 @JavascriptInterface
 public String get_url(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
             return p.get_url();
     } catch(Exception e){
@@ -96,9 +136,9 @@ public int get_bitrate(){ return 0; }
 @JavascriptInterface
 public void seek(long ms, int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
-            p.seek(ms);
+            p.seekTo(ms);
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
@@ -111,9 +151,9 @@ public String get_levels(){ return ""; }
 @JavascriptInterface
 public boolean is_live_stream(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
-            return p.is_live_stream();
+            return p.isCurrentWindowDynamic();
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
@@ -129,10 +169,10 @@ public String get_buffered(){ return ""; }
 @JavascriptInterface
 public long get_buffered_pos(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
         {
-            long pos = p.get_buffred_pos();
+            long pos = p.getBufferedPosition();
             return pos==C.TIME_UNSET ? 0 : pos;
         }
     } catch(Exception e){
@@ -143,19 +183,21 @@ public long get_buffered_pos(int hashCode){
 }
 @JavascriptInterface
 public void js_attach_ready(int hashCode){
-    ExoPlayerController p = findPlayer(hashCode);
+    SparkPlayer p = findPlayer(hashCode);
     if (p!=null)
         p.js_attach_ready();
 }
 @JavascriptInterface
 public boolean is_prepared(int hashCode){
-    ExoPlayerController p = findPlayer(hashCode);
-    return p!=null && p.is_prepared();
+    SparkPlayer p = findPlayer(hashCode);
+    return p!=null && p.getPlaybackState() != Player.STATE_IDLE;
 }
 @JavascriptInterface
 public String get_app_label(int hashCode){
-    ExoPlayerController p = findPlayer(hashCode);
-    return p!=null ? p.get_app_label() : "";
+    SparkPlayer p = findPlayer(hashCode);
+    Context context = p.getContext();
+    PackageManager pm = context.getPackageManager();
+    return (String)pm.getApplicationLabel(context.getApplicationInfo());
 }
 @JavascriptInterface
 public String get_player_name(){ return Const.PLAYER_NAME; }
@@ -164,9 +206,9 @@ public void wrapper_attached(){}
 @JavascriptInterface
 public boolean is_ad_playing(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
-            return p.is_playing_ad();
+            return p.isPlayingAd();
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
@@ -176,7 +218,7 @@ public boolean is_ad_playing(int hashCode){
 @JavascriptInterface
 public String get_poster(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
             return p.get_poster();
     } catch(Exception e){
@@ -188,7 +230,7 @@ public String get_poster(int hashCode){
 @JavascriptInterface
 public String get_title(int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
             return p.get_title();
     } catch(Exception e){
@@ -198,21 +240,22 @@ public String get_title(int hashCode){
     return null;
 }
 @JavascriptInterface
-public void module_cb(final String module, String fn, String value,
+public String module_cb(final String module, String fn, String value,
     int hashCode){
     try {
-        ExoPlayerController p = findPlayer(hashCode);
+        SparkPlayer p = findPlayer(hashCode);
         if (p!=null)
-            p.module_cb(module, fn, value);
+            return p.module_cb(module, fn, value);
     } catch(Exception e){
         Log.d(Const.TAG, "exception hash: "+hashCode);
         Log.e(Const.TAG, "exception", e);
     }
+    return null;
 }
 void trigger_js(){
-    for (WeakReference<ExoPlayerController> p : m_proxy_list)
+    for (WeakReference<SparkPlayer> p : m_proxy_list)
     {
-        ExoPlayerController proxy_test = p.get();
+        SparkPlayer proxy_test = p.get();
         if (proxy_test!=null)
             proxy_test.js_inited();
     }
@@ -220,9 +263,9 @@ void trigger_js(){
 void unregister_all(){
     while (m_proxy_list.size()>0)
     {
-        ExoPlayerController proxy_test = m_proxy_list.get(0).get();
+        SparkPlayer proxy_test = m_proxy_list.get(0).get();
         if (proxy_test!=null)
-            proxy_test.get_player().release();
+            proxy_test.release();
     }
 }
 }

@@ -1,12 +1,13 @@
 package com.spark.player;
 public class SparkPlayerConfig {
-public boolean m_floatmode = true;
-public boolean m_float_close_on_touch = true;
-public boolean m_thumbnails = true;
-public boolean m_watch_next = true;
-public boolean m_full_frame_thumbnails = false;
-public boolean m_vrmode = false;
-public boolean m_position_memory = true;
-public boolean m_bottom_settings_menu = false;
-public boolean m_auto_fullscreen = true;
+public boolean floatmode = true;
+public boolean float_close_on_touch = true;
+public boolean thumbnails = true;
+public boolean watch_next = true;
+public boolean full_frame_thumbnails = false;
+public boolean vrmode = false;
+public boolean position_memory = true;
+public boolean bottom_settings_menu = false;
+public boolean bottom_edge_timebar = true;
+public boolean auto_fullscreen = true;
 }

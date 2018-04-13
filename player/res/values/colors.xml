@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#FF000000</color>
-    <color name="white">#FFFFFFFF</color>
+    <color name="white">#e6e6e6</color>
     <color name="red">#FFFF0000</color>
     <color name="translucent_white">#66FFFFFF</color>
     <color name="played">#FF00B7F1</color>
     <color name="unplayed">#55FFFFFF</color>
     <color name="buffered">#CCFFFFFF</color>
     <color name="ad_marker">#B2FFFF00</color>
+    <color name="played_ad_marker">#00FFFF00</color>
+    <color name="spark_light_grey">#e6e6e6</color>
 </resources>

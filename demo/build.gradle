@@ -7,7 +7,7 @@ if (f.exists())
 
 android {
     compileSdkVersion 27
-    buildToolsVersion "27.0.2"
+    buildToolsVersion "27.0.3"
     sourceSets {
         main {
             manifest.srcFile "AndroidManifest.xml"
@@ -19,8 +19,8 @@ android {
         applicationId "com.holaspark.holaplayerdemo"
         minSdkVersion 19
         targetSdkVersion 27
-        versionCode 2010905310
-        versionName "1.90.531"
+        versionCode 2010915520
+        versionName "1.91.552"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
