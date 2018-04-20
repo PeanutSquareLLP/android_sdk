@@ -83,6 +83,8 @@ private ProgressBar m_loading;
 private SparkTimeBar m_timebar;
 private float m_panx;
 private float m_pany;
+private int m_prev_video_width = 960;
+private int m_prev_video_height = 540;
 private boolean m_controlbar_enabled;
 private boolean m_seeking;
 private String m_poster_url;
@@ -133,9 +135,6 @@ public SparkPlayer(Context context, AttributeSet attrs){
             m_config.vrmode);
         m_config.position_memory = style.getBoolean(
             R.styleable.SparkPlayer_position_memory, m_config.position_memory);
-        m_config.full_frame_thumbnails = style.getBoolean(
-            R.styleable.SparkPlayer_full_frame_thumbnails,
-            m_config.full_frame_thumbnails);
         m_config.watch_next = style.getBoolean(
             R.styleable.SparkPlayer_watch_next, m_config.watch_next);
         m_config.bottom_settings_menu = style.getBoolean(
@@ -272,8 +271,16 @@ protected void onMeasure(int width_spec, int height_spec){
     int height_size = MeasureSpec.getSize(height_spec);
     int video_width = get_video_width();
     int video_height = get_video_height();
-    video_width = video_width==0 ? 960 : video_width;
-    video_height = video_height==0 ? 540 : video_height;
+    if (video_width==0)
+    {
+        video_width = m_prev_video_width;
+        video_height = m_prev_video_height;
+    }
+    else
+    {
+        m_prev_video_width = video_width;
+        m_prev_video_height = video_height;
+    }
     float aspect = (float)video_width/video_height;
     int max_width = Math.min(width_mode==MeasureSpec.AT_MOST ? width_size :
         Integer.MAX_VALUE, m_max_width);
@@ -506,20 +513,26 @@ public void set_watch_next_items(PlayListItem[] items){
 public SparkModule get_watch_next_ctrl(){ return m_spark_watch_next; }
 @Override
 public int get_video_width(){
-    Drawable poster = m_poster !=null ? m_poster.getDrawable() : null;
+    Drawable poster = m_poster!=null ? m_poster.getDrawable() : null;
     if (m_controller.has_video_track())
         return m_controller.get_video_width();
-    else if (poster!=null && m_poster.getVisibility()==VISIBLE)
+    else if (poster!=null && m_poster.getVisibility()==VISIBLE &&
+        poster.getIntrinsicWidth()>0)
+    {
         return poster.getIntrinsicWidth();
+    }
     return 0;
 }
 @Override
 public int get_video_height(){
-    Drawable poster = m_poster !=null ? m_poster.getDrawable() : null;
+    Drawable poster = m_poster!=null ? m_poster.getDrawable() : null;
     if (m_controller.has_video_track())
         return m_controller.get_video_height();
-    else if (poster!=null && m_poster.getVisibility()==VISIBLE)
+    else if (poster!=null && m_poster.getVisibility()==VISIBLE &&
+        poster.getIntrinsicHeight()>0)
+    {
         return poster.getIntrinsicHeight();
+    }
     return 0;
 }
 public float get_aspect(){
@@ -819,9 +832,10 @@ public void send_spark_message(String type, final String subtype,
     m_handler.post(new Runnable() {
         @Override
         public void run(){
-            String script = "javascript:window.hola_cdn && hola_cdn.api.get_spark()"
-                +".stats."+subtype+"('"+param1+"',"+param2+")";
-            WebViewController.evaluate(script, new ValueCallback<String>() {
+            String script = "stats."+subtype+"('"+param1+"',"+param2+")";
+            WebViewController.call_spark_api(script,
+                new ValueCallback<String>()
+            {
                 @Override
                 public void onReceiveValue(String s){
                     if (cb!=null)
@@ -850,7 +864,7 @@ public void send_msg(String cmd, String data){
 }
 private void send_string(String msg){
     Log.d(Const.TAG, "send message "+msg);
-    WebViewController.evaluate("javascript:window.hola_cdn && hola_cdn"+
+    WebViewController.evaluate("window.hola_cdn && hola_cdn"+
         ".android_message('"+msg+"')", null);
 }
 private void check_hola(){
@@ -866,7 +880,7 @@ private void check_hola(){
     m_handler.post(new Runnable() {
         @Override
         public void run(){
-            WebViewController.evaluate("javascript:window.hola_cdn && "+
+            WebViewController.evaluate("window.hola_cdn && "+
                 "typeof hola_cdn.android_message", new ValueCallback<String>()
             {
                 @Override

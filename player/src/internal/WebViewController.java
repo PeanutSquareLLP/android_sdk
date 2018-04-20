@@ -101,7 +101,7 @@ public static synchronized void init(Context ctx, String customer_id,
     WebViewHolder.m_webview = webview;
 }
 private static void check_features(){
-    evaluate("window.hola_cdn.api.get_spark().get_features()",
+    call_spark_api("get_features()",
         new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String s){
@@ -111,7 +111,7 @@ private static void check_features(){
 }
 // XXX andrey/pavelki: add no_small param instead of checking ready
 private static void check_ready(){
-    WebViewController.evaluate("javascript:window.hola_cdn",
+    evaluate("window.hola_cdn",
         new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String s){
@@ -144,6 +144,10 @@ public static void evaluate(String script, ValueCallback<String> cb){
     if (get_instance()==null)
         return;
     get_instance().evaluateJavascript(script, cb);
+}
+public static void call_spark_api(String script, ValueCallback<String> cb){
+    evaluate("window.hola_cdn && window.hola_cdn.api.get_spark()."+script,
+        cb);
 }
 private final static class ConsoleClient extends WebChromeClient {
     @Override
