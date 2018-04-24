@@ -12,12 +12,7 @@ public SparkAdsOverlay(Context context){ this(context, null); }
 public SparkAdsOverlay(Context context, AttributeSet attrs){
     this(context, attrs, 0); }
 public SparkAdsOverlay(Context context, AttributeSet attrs, int defStyleAttr){
-    this(context, attrs, 0, 0); }
-public SparkAdsOverlay(@NonNull Context context, @Nullable AttributeSet attrs,
-    int defStyleAttr, int defStyleRes)
-{
-    super(context, attrs, defStyleAttr, defStyleRes);
-}
+    super(context, attrs, defStyleAttr); }
 void set_listener(Listener listener){ m_listener = listener; }
 void remove_listener(){ m_listener = null; }
 @Override

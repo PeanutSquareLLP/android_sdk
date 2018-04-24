@@ -19,8 +19,8 @@ android {
         applicationId "com.holaspark.holaplayerdemo"
         minSdkVersion 19
         targetSdkVersion 27
-        versionCode 2010924340
-        versionName "1.92.434"
+        versionCode 2010928100
+        versionName "1.92.810"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
